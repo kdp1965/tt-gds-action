@@ -6,6 +6,10 @@ set -euo pipefail
 : "${PDK_ROOT:?PDK_ROOT must be set}"
 
 git clone --branch dev https://github.com/IHP-GmbH/IHP-Open-PDK.git "$PDK_ROOT"
+# IHP-Open-PDK dev now vendors its own ihp-sg13cmos5l (since 2026-09), whose
+# Magic tech needs a newer magic than LibreLane 3.0.0rc1 ships.  Drop it and
+# keep using the pinned standalone repository below.
+rm -rf "$PDK_ROOT/ihp-sg13cmos5l"
 git clone https://github.com/IHP-GmbH/ihp-sg13cmos5l.git "$PDK_ROOT/ihp-sg13cmos5l"
 cd "$PDK_ROOT/ihp-sg13cmos5l"
 git checkout ae7613984daf3ac2b14897321399df497278068f

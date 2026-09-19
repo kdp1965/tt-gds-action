@@ -108,11 +108,18 @@ runs:
     # can be changed without a new LibreLane release.  The precheck installs
     # its own revision (precheck/action.yml); keep the two in step.
     - name: Override the PDK revision LibreLane pins
-      if: inputs.pdk-version != ''
       shell: bash
       env:
         PDK_VERSION_OVERRIDE: ${{ inputs.pdk-version }}
       run: |
+        # Always runs and always reports: a silently skipped step here looks
+        # exactly like a failed override three sign-off steps later.
+        echo "pdk=$PDK  pdk-version input='$PDK_VERSION_OVERRIDE'"
+        if [ -z "$PDK_VERSION_OVERRIDE" ]; then
+          echo "no pdk-version given: keeping the revision LibreLane pins"
+          exit 0
+        fi
+        python -c "import librelane, os; print('librelane', librelane.__version__, 'at', os.path.dirname(librelane.__file__))"
         python - <<'PDKPIN'
         import os, librelane
         path = os.path.join(os.path.dirname(librelane.__file__), "pdk_hashes.yaml")

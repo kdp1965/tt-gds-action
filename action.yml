@@ -28,6 +28,18 @@ inputs:
     default: '3.0.5'
     required: false
     type: string
+  pdk-version:
+    description: >-
+      PDK revision to harden against, overriding the one the installed
+      LibreLane pins in pdk_hashes.yaml.  Every LibreLane 3.0.x release pins
+      the January 2026 IHP build, whose KLayout deck reports thousands of
+      violations inside IHP''s own SRAM cells; set this to a newer build (the
+      same revision precheck/action.yml installs) to harden and sign off
+      against it.  Must be a revision ciel can fetch: `ciel ls-remote
+      --pdk-family <pdk>`.  Empty keeps LibreLane''s own pin.
+    default: ''
+    required: false
+    type: string
 
 runs:
   using: 'composite'
@@ -90,6 +102,32 @@ runs:
     - name: Install LibreLane
       shell: bash
       run: pip install librelane==${{ inputs.librelane-version }}
+
+    # LibreLane resolves the PDK through ciel from the hash baked into the
+    # installed package, so this is the only place the harden's PDK revision
+    # can be changed without a new LibreLane release.  The precheck installs
+    # its own revision (precheck/action.yml); keep the two in step.
+    - name: Override the PDK revision LibreLane pins
+      if: inputs.pdk-version != ''
+      shell: bash
+      env:
+        PDK_VERSION_OVERRIDE: ${{ inputs.pdk-version }}
+      run: |
+        python - <<'PDKPIN'
+        import os, librelane
+        path = os.path.join(os.path.dirname(librelane.__file__), "pdk_hashes.yaml")
+        pdk, version = os.environ["PDK"], os.environ["PDK_VERSION_OVERRIDE"]
+        lines = open(path).read().splitlines(keepends=True)
+        keys = [l.split(":", 1)[0] for l in lines if l[:1].strip() and ":" in l]
+        family = max((k for k in keys if pdk.startswith(k)), key=len, default=None)
+        if family is None:
+            raise SystemExit(f"no pdk_hashes.yaml entry matches {pdk}: {keys}")
+        for i, l in enumerate(lines):
+            if l.startswith(f"{family}:"):
+                print(f"{path}\n  {l.strip()}\n  -> {family}: {version}")
+                lines[i] = f"{family}: {version}\n"
+        open(path, "w").writelines(lines)
+        PDKPIN
 
     - name: Make GDS with LibreLane
       shell: bash
